@@ -21,7 +21,9 @@ image:
 nameOverride: ""
 
 # -- String to fully override opencti.fullname template
-fullnameOverride: ""
+fullnameOverride: "opencti"
+
+
 
 # -- Global Docker registry secret names as an array
 imagePullSecrets: []
@@ -47,27 +49,23 @@ env:
   # my_env: my_value
   # APP OPENCTI
   APP__ADMIN__EMAIL: admin@opencti.io
-  APP__ADMIN__PASSWORD: ChangeMe
-  APP__ADMIN__TOKEN: ChangeMe
+  APP__ADMIN__PASSWORD: test
+  APP__ADMIN__TOKEN: b1976749-8a53-4f49-bf04-cafa2a3458c1
   APP__BASE_PATH: "/"
-  # MINIO:
-  MINIO__ENDPOINT: release-name-minio:9000
-  # ELASTICSEARCH
-  ELASTICSEARCH__URL: http://release-name-elasticsearch:9200
-  # RABBITMQ
-  RABBITMQ__HOSTNAME: release-name-rabbitmq
+  MINIO__ENDPOINT: opencti-minio
+  ELASTICSEARCH__URL: http://opencti-elasticsearch:9200
+  ELASTICSEARCH__ENGINE_SELECTOR: auto
+  RABBITMQ__HOSTNAME: opencti-rabbitmq
   RABBITMQ__PORT_MANAGEMENT: 15672
   RABBITMQ__PORT: 5672
   RABBITMQ__USERNAME: user
   RABBITMQ__PASSWORD: ChangeMe
-  # REDIS
-  REDIS__HOSTNAME: release-name-redis-master
+  REDIS__HOSTNAME: opencti-redis-master
   REDIS__PORT: 6379
   REDIS__MODE: single
-  # METRICS AND HEALTHCHECK
-  APP__TELEMETRY__METRICS__ENABLED: true
-  APP__HEALTH_ACCESS_KEY: ChangeMe
+  
 
+testConnection: false
 # -- Secrets from variables
 envFromSecrets: {}
   # Cipher vars
@@ -75,13 +73,13 @@ envFromSecrets: {}
   #  name: release-name-credentials
   #  key: secret_key
 
-# -- Secrets values to create credentials and reference by envFromSecrets
+# -- Secrets values to create credencials and reference by envFromSecrets
 secrets: {}
 
-# -- Kubernetes service to expose Pod
+# -- Kubernetes servide to expose Pod
 service:
   # -- Kubernetes Service type. Allowed values: NodePort, LoadBalancer or ClusterIP
-  type: ClusterIP
+  type: LoadBalancer
   # -- Kubernetes Service port
   port: 80
   # -- NodePort port (only when type is NodePort)
@@ -93,16 +91,6 @@ service:
   # - name: metrics
   #   port: 9080
   #   targetPort: 9080
-
-# -- Enable ServiceMonitor to get metrics
-# ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#servicemonitor
-serviceMonitor:
-  # -- Enable or disable
-  enabled: false
-  interval: 30s
-  scrapeTimeout: 10s
-  metricRelabelings: []
-  relabelings: []
 
 # -- Configure liveness checker
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-startup-probes
@@ -185,6 +173,7 @@ readyChecker:
   - name: redis-master
     port: 6379
 
+
 # -- Ingress configuration to expose app
 ingress:
   enabled: false
@@ -221,7 +210,7 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 100
   targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
 
 # -- Node labels for pod assignment
 nodeSelector: {}
@@ -240,22 +229,41 @@ connectorsGlobalEnv:
 
 # -- Connectors
 # ref: https://github.com/OpenCTI-Platform/connectors/tree/master
-connectors: []
-# - name: connector-name
-#   enabled: true
-#   replicas: 1
-#   # -- Image registry
-#   image: {}
-#     repository:
-#     pullPolicy:
-#     tag:
-#   # -- Environment variables to configure application
-#   env: {}
-#   # Plain vars
+connectors:
+- name: export-file-csv
+  enabled: true
+  replicas: 1
+  image: 
+    repository: opencti/connector-export-file-csv
+    tag: "6.0.5"
+  env:
+    CONNECTOR_CONFIDENCE_LEVEL: "15"
+    CONNECTOR_ID: "7ba187fb-fde8-4063-92b5-c3da34060dd7"
+    CONNECTOR_LOG_LEVEL: "info"
+    CONNECTOR_NAME: ExportFileStix2
+    CONNECTOR_SCOPE: application/json
+    CONNECTOR_TYPE: INTERNAL_EXPORT_FILE
+- name: export-file-stix
+  enabled: true
+  replicas: 1
+  image: 
+    repository: opencti/connector-import-file-stix
+    pullPolicy:
+    tag: "6.0.5"
+  env:
+    CONNECTOR_CONFIDENCE_LEVEL: "15"
+    CONNECTOR_ID: "72327164-0b35-482b-b5d6-a5a3f76b845f"
+    CONNECTOR_LOG_LEVEL: "info"
+    CONNECTOR_NAME: ExportFileStix2
+    CONNECTOR_SCOPE: application/json
+    CONNECTOR_TYPE: INTERNAL_EXPORT_FILE
+
+
+  # Plain vars
 #   # foo: bar
 #   # my_env: my_value
 #   # -- Pod annotations
-#   podAnnotations: {}
+podAnnotations: {}
 #   # -- Secrets from variables
 #   envFromSecrets: {}
 #     # Cipher vars
@@ -287,7 +295,7 @@ worker:
   enabled: true
 
   # -- Number of replicas
-  replicaCount: 1
+  replicaCount: 3
 
   # -- Enable or disable ready-checker waiting server is ready
   readyChecker:
@@ -302,7 +310,7 @@ worker:
     repository: opencti/worker
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: "6.0.5"
 
   # -- Environment variables to configure application
   # ref: https://docs.opencti.io/5.12.X/deployment/configuration/#platform
@@ -311,25 +319,16 @@ worker:
     # foo: bar
     # my_env: my_value
     WORKER_LOG_LEVEL: info
-    # METRICS
-    WORKER_TELEMETRY_ENABLED: true
-
+    APP_WORKER_TOKEN: 21B57971-9B6E-4242-BFAA-D02CC8E6E94F
+    WORKER_TELEMETRY_ENABLED: "true"
+    WORKER_TELEMETRY_PROMETHEUS_PORT: "14270"
+    WORKER_PROMETHEUS_TELEMETRY_HOST: "0.0.0.0"
   # -- Secrets from variables
   envFromSecrets: {}
     # Cipher vars
     # my_env:
     #  name: release-name-credentials
     #  key: secret_key
-
-  # -- Enable ServiceMonitor to get metrics
-  # ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#servicemonitor
-  serviceMonitor:
-    # -- Enable or disable
-    enabled: false
-    interval: 30s
-    scrapeTimeout: 10s
-    metricRelabelings: []
-    relabelings: []
 
   # -- The resources limits and requested
   resources: {}
@@ -385,6 +384,7 @@ opensearch:
 elasticsearch:
   # -- Enable or disable ElasticSearch subchart
   enabled: true
+  fullnameOverride: opencti-elasticsearch
 
   ## Kernel settings modifier image
   ##
@@ -400,11 +400,11 @@ elasticsearch:
     - name: ES_JAVA_OPTS
       value: "-Xms512M -Xmx512M"
 
-  ## @section Master-eligible nodes parameters
+  ## @section Master-elegible nodes parameters
   master:
-    # -- Deploy the Elasticsearch master-eligible nodes as master-only nodes. Recommended for high-demand deployments.
+    # -- Deploy the Elasticsearch master-elegible nodes as master-only nodes. Recommended for high-demand deployments.
     masterOnly: true
-    # -- Number of master-eligible replicas to deploy
+    # -- Number of master-elegible replicas to deploy
     replicaCount: 1
     # -- Enable persistence using Persistent Volume Claims
     # ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
@@ -439,6 +439,7 @@ elasticsearch:
 minio:
   # -- Enable or disable MinIO subchart
   enabled: true
+  fullnameOverride: opencti-minio
 
   # -- mode Minio server mode (`standalone` or `distributed`)
   # ref: https://docs.minio.io/docs/distributed-minio-quickstart-guide
@@ -461,6 +462,7 @@ minio:
 rabbitmq:
     # -- Enable or disable RabbitMQ subchart
   enabled: true
+  fullnameOverride: opencti-rabbitmq
 
   # -- Number of RabbitMQ replicas to deploy
   replicaCount: 1
@@ -490,6 +492,7 @@ rabbitmq:
 redis:
   # -- Enable or disable Redis subchart
   enabled: true
+  fullnameOverride: opencti-redis
 
   # -- Redis architecture. Allowed values: `standalone` or `replication`
   architecture: standalone
